@@ -28,8 +28,8 @@
             --text-muted: #8e8e8e;
             
             /* Colores principales de la interfaz */
-            --primary: #ff758c; /* Rosa vivo y cálido para botones principales */
-            --secondary: #a1c4fd; /* Azul pastel para elementos secundarios */
+            --primary: #ff758c; 
+            --secondary: #a1c4fd; 
             --warning: #ffb8b8; 
             --danger: #ff8fa3;
             
@@ -298,15 +298,24 @@
 
         <div class="card">
             <h2>🏃‍♀️ Actividad Física</h2>
-            <p style="font-size: 0.85em; color: var(--text-muted); margin-top: 0;">Si saliste a caminar o hiciste ejercicio, anótalo aquí para ganar calorías extra para el día.</p>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-top: 0;">Si saliste a caminar o hiciste ejercicio, anótalo para ganar carbohidratos extras en tus siguientes comidas.</p>
             
-            <label>Actividad</label>
+            <label>¿En qué momento del día lo hiciste?</label>
+            <select id="actividad-momento">
+                <option value="post_desayuno">Por la mañana (Después de desayunar)</option>
+                <option value="pre_desayuno">Temprano (Antes de desayunar / Ayunas)</option>
+                <option value="post_almuerzo">A la siesta o tarde (Después de almorzar)</option>
+                <option value="post_merienda">A la tardecita o noche (Después de merendar)</option>
+            </select>
+
+            <label>¿Qué Actividad fue?</label>
             <select id="cardio-tipo">
                 <option value="caminar">Caminata Ligera / Paseo</option>
                 <option value="caminar_rapido">Caminata Rápida</option>
                 <option value="bicicleta">Bicicleta Fija o de Paseo</option>
                 <option value="gimnasia">Gimnasia / Pilates / Yoga</option>
             </select>
+            
             <label>¿Cuántos minutos duró?</label>
             <input type="number" id="cardio-tiempo" placeholder="Ej: 45">
             <button class="btn-cyan" onclick="registrarActividad()">Anotar Actividad</button>
@@ -358,7 +367,7 @@
     <div id="tab-perfil" class="tab-content">
         <div class="card">
             <h2>👤 Mis Datos Personales</h2>
-            <p style="font-size: 0.85em; color: var(--text-muted); margin-top: 0;">Tus calorías se calculan en base a tu cuerpo actual. ¡Mantenlos al día!</p>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-top: 0;">Tus calorías y macros se calculan en base a tu cuerpo actual. ¡Mantenlos al día!</p>
             <div style="display: flex; gap: 10px;">
                 <div style="flex: 1;">
                     <label>Peso (kg)</label>
@@ -397,7 +406,7 @@
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    // --- CONFIGURACIÓN CLOUD (Carpeta Separada para Mamá) ---
+    // --- CONFIGURACIÓN CLOUD ---
     const firebaseConfig = {
         apiKey: "AIzaSyAuBsFDSQlx2ye8PcqdpJor6A29wag7zuE",
         authDomain: "macros-app-pro-e8702.firebaseapp.com",
@@ -409,14 +418,14 @@
 
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.firestore();
-    // CLAVE: Guarda en una carpeta distinta
     const docRef = db.collection("panel_macros").doc("datos_mama");
 
-    // --- DATOS LOCALES INICIALES (Perfil Femenino Adaptado) ---
-    let PERFIL = { peso: 65.0, edad: 50, altura: 160 };
+    // --- DATOS LOCALES ---
+    // Valores ajustados a lo que me comentaste: 53kg, 50 años, altura promedio.
+    let PERFIL = { peso: 53.0, edad: 50, altura: 160 };
     let BASE_KCAL = 1500; 
-    let gastoActividadFisica = 0; 
-    let misNotasRecetas = {};
+    
+    let gastoActividades = { pre_desayuno: 0, post_desayuno: 0, post_almuerzo: 0, post_merienda: 0 }; 
 
     const metas = { total: { kcal:0, prot:0, carb:0, gras:0 }, desayuno: { kcal:0, prot:0, carb:0, gras:0 }, almuerzo: { kcal:0, prot:0, carb:0, gras:0 }, merienda: { kcal:0, prot:0, carb:0, gras:0 }, cena: { kcal:0, prot:0, carb:0, gras:0 } };
     let consumido = { total: { kcal:0, prot:0, carb:0, gras:0 }, desayuno: { kcal:0, prot:0, carb:0, gras:0 }, almuerzo: { kcal:0, prot:0, carb:0, gras:0 }, merienda: { kcal:0, prot:0, carb:0, gras:0 }, cena: { kcal:0, prot:0, carb:0, gras:0 } };
@@ -571,11 +580,11 @@
         "fideos_matarazzo__cocidos__con_aceite_y_queso_cremoso_": { nombre: "Fideos Matarazzo (cocidos, con aceite y queso cremoso)", prot: 6.8, carb: 31.3, gras: 3.6 }
     };
 
-    // --- LÓGICA MATEMÁTICA ---
+    // --- LÓGICA MATEMÁTICA Y CRONONUTRICIÓN ---
     function calcularGastoBase() {
         // Fórmula Mifflin-St Jeor para MUJERES
         const tmb = (10 * PERFIL.peso) + (6.25 * PERFIL.altura) - (5 * PERFIL.edad) - 161;
-        // Multiplicador base de actividad ligera (amas de casa / trabajo de oficina ligero)
+        // Multiplicador base de actividad ligera
         BASE_KCAL = tmb * 1.3;
     }
 
@@ -603,27 +612,66 @@
 
     function actualizarDashboard() {
         const multiplicador = parseFloat(document.getElementById('select-objetivo').value);
-        const mantenimiento = BASE_KCAL + gastoActividadFisica;
         
-        metas.total.kcal = mantenimiento * multiplicador;
-        
-        // Requerimientos femeninos saludables (1.5g prot por kilo, grasas al 30%)
-        metas.total.prot = PERFIL.peso * 1.5; 
-        metas.total.gras = (metas.total.kcal * 0.3) / 9;  
-        
-        let caloriasRestantesTotales = metas.total.kcal - ((metas.total.prot * 4) + (metas.total.gras * 9));
-        metas.total.carb = Math.max(0, caloriasRestantesTotales / 4);
+        // 1. BASE CERO (Sin Actividad)
+        const metaKcalBase = BASE_KCAL * multiplicador;
+        metas.total.prot = PERFIL.peso * 1.8; 
+        metas.total.gras = PERFIL.peso * 1.0;  
+        let carbBaseTotal = Math.max(0, (metaKcalBase - (metas.total.prot * 4) - (metas.total.gras * 9)) / 4);
+
+        // 2. REPARTIR LA BASE 
+        // Proteínas
+        metas.desayuno.prot = metas.total.prot * 0.15;
+        metas.almuerzo.prot = metas.total.prot * 0.35;
+        metas.merienda.prot = metas.total.prot * 0.20;
+        metas.cena.prot     = metas.total.prot * 0.30;
+
+        // Grasas
+        metas.desayuno.gras = metas.total.gras * 0.15;
+        metas.almuerzo.gras = metas.total.gras * 0.25;
+        metas.merienda.gras = metas.total.gras * 0.20;
+        metas.cena.gras     = metas.total.gras * 0.40;
+
+        // Carbohidratos (Base sin ejercicio)
+        metas.desayuno.carb = carbBaseTotal * 0.25;
+        metas.almuerzo.carb = carbBaseTotal * 0.35;
+        metas.merienda.carb = carbBaseTotal * 0.15;
+        metas.cena.carb     = carbBaseTotal * 0.25;
+
+        // 3. INYECTAR EXTRAS (CRONONUTRICIÓN)
+        const carbPreDesayuno = (gastoActividades.pre_desayuno * multiplicador) / 4;
+        const carbPostDesayuno = (gastoActividades.post_desayuno * multiplicador) / 4;
+        const carbPostAlmuerzo = (gastoActividades.post_almuerzo * multiplicador) / 4;
+        const carbPostMerienda = (gastoActividades.post_merienda * multiplicador) / 4;
+
+        // Ayunas (Reparte en el día completo)
+        metas.desayuno.carb += carbPreDesayuno * 0.25;
+        metas.almuerzo.carb += carbPreDesayuno * 0.35;
+        metas.merienda.carb += carbPreDesayuno * 0.15;
+        metas.cena.carb     += carbPreDesayuno * 0.25;
+
+        // Post-Desayuno (Mañana) - No toca el desayuno
+        metas.almuerzo.carb += carbPostDesayuno * 0.50; 
+        metas.merienda.carb += carbPostDesayuno * 0.20;
+        metas.cena.carb     += carbPostDesayuno * 0.30;
+
+        // Post-Almuerzo (Siesta) - No toca Desayuno ni Almuerzo
+        metas.merienda.carb += carbPostAlmuerzo * 0.40;
+        metas.cena.carb     += carbPostAlmuerzo * 0.60;
+
+        // Post-Merienda (Noche) - Todo a la cena
+        metas.cena.carb     += carbPostMerienda * 1.00;
+
+        // 4. TOTALES
+        metas.total.carb = metas.desayuno.carb + metas.almuerzo.carb + metas.merienda.carb + metas.cena.carb;
+        let gastoExtraTotal = gastoActividades.pre_desayuno + gastoActividades.post_desayuno + gastoActividades.post_almuerzo + gastoActividades.post_merienda;
+        metas.total.kcal = (BASE_KCAL + gastoExtraTotal) * multiplicador;
 
         document.getElementById('txt-meta-info').innerText = `Tu Meta de Hoy: ${metas.total.kcal.toFixed(0)} Calorías`;
 
-        // Distribución pareja durante el día
-        const rep = 0.25; // 25% para cada comida
         const comidas = ['desayuno', 'almuerzo', 'merienda', 'cena'];
         comidas.forEach(comida => { 
-            metas[comida].prot = metas.total.prot * rep;
-            metas[comida].carb = metas.total.carb * rep;
-            metas[comida].gras = metas.total.gras * rep;
-            metas[comida].kcal = metas.total.kcal * rep;
+            metas[comida].kcal = (metas[comida].prot * 4) + (metas[comida].carb * 4) + (metas[comida].gras * 9);
         });
 
         renderizarUI();
@@ -649,7 +697,7 @@
     // --- CONEXIÓN A FIREBASE ---
     function guardarEnNube() {
         const historialHTML = document.getElementById('historial-lista').innerHTML;
-        docRef.set({ baseAlimentos, consumido, gastoActividadFisica, PERFIL, historialHTML })
+        docRef.set({ baseAlimentos, consumido, gastoActividades, PERFIL, historialHTML })
         .catch(error => console.error("Error guardando en Firebase: ", error));
     }
 
@@ -662,9 +710,15 @@
                 const data = doc.data();
                 if (data.baseAlimentos) baseAlimentos = data.baseAlimentos;
                 if (data.consumido) consumido = data.consumido;
-                if (data.gastoActividadFisica !== undefined) gastoActividadFisica = data.gastoActividadFisica;
                 if (data.PERFIL) PERFIL = data.PERFIL;
                 if (data.historialHTML) document.getElementById('historial-lista').innerHTML = data.historialHTML;
+
+                if (data.gastoActividades) {
+                    gastoActividades = data.gastoActividades;
+                } else if (data.gastoActividadFisica !== undefined) {
+                    // Adaptación si viene de una versión de prueba
+                    gastoActividades.post_desayuno = data.gastoActividadFisica;
+                }
 
                 calcularGastoBase();
                 document.getElementById('input-peso').value = PERFIL.peso;
@@ -680,9 +734,10 @@
     function registrarActividad() {
         const tiempo = parseFloat(document.getElementById('cardio-tiempo').value);
         const subTipo = document.getElementById('cardio-tipo').value;
+        const momento = document.getElementById('actividad-momento').value;
         if (!tiempo) return alert("Ingresa los minutos.");
 
-        let met = 3.5; // Por defecto caminata
+        let met = 3.5; 
         if (subTipo === 'caminar_rapido') met = 5.0;
         else if (subTipo === 'bicicleta') met = 6.0;
         else if (subTipo === 'gimnasia') met = 4.5;
@@ -690,11 +745,13 @@
         let kcalQuemadas = met * PERFIL.peso * (tiempo / 60);
         if (kcalQuemadas <= 0) return;
         
-        gastoActividadFisica += kcalQuemadas;
+        gastoActividades[momento] += kcalQuemadas;
         document.getElementById('cardio-tiempo').value = '';
         
         const div = document.createElement('div'); div.className = 'log-item';
-        div.innerHTML = `<div style="display: flex; justify-content: space-between; align-items: center;"><div><strong>Actividad: ${subTipo.toUpperCase()} (${tiempo} min)</strong><br><span style="color:var(--text-muted); font-size:0.9em;">Ganaste +${kcalQuemadas.toFixed(0)} kcal para comer hoy</span></div><button class="btn-delete" onclick="eliminarActividad(this, ${kcalQuemadas})">❌</button></div>`;
+        let subTipoNombres = { 'caminar': 'Caminata Ligera', 'caminar_rapido': 'Caminata Rápida', 'bicicleta': 'Bicicleta', 'gimnasia': 'Gimnasia' };
+        
+        div.innerHTML = `<div style="display: flex; justify-content: space-between; align-items: center;"><div><strong>Actividad: ${subTipoNombres[subTipo]} (${tiempo} min)</strong><br><span style="color:var(--text-muted); font-size:0.9em;">Ganaste +${kcalQuemadas.toFixed(0)} kcal para comer después</span></div><button class="btn-delete" onclick="eliminarActividad(this, ${kcalQuemadas}, '${momento}')">❌</button></div>`;
         const cont = document.getElementById('historial-lista');
         if(document.getElementById('msg-vacio')) cont.innerHTML = '';
         cont.insertBefore(div, cont.firstChild);
@@ -702,8 +759,8 @@
         guardarEnNube(); 
     }
 
-    function eliminarActividad(boton, kcal) {
-        gastoActividadFisica = Math.max(0, gastoActividadFisica - kcal);
+    function eliminarActividad(boton, kcal, momento) {
+        gastoActividades[momento] = Math.max(0, gastoActividades[momento] - kcal);
         boton.parentElement.parentElement.remove();
         if (document.getElementById('historial-lista').children.length === 0) document.getElementById('historial-lista').innerHTML = '<p id="msg-vacio" style="color: #999; font-style: italic; text-align: center;">Aún no anotaste nada hoy.</p>';
         guardarEnNube(); 
@@ -751,10 +808,10 @@
     }
 
     function reiniciarDia() {
-        if(confirm("¿Seguro que quieres borrar todo lo que comiste hoy?")) {
+        if(confirm("¿Seguro que quieres borrar todo lo que comiste y tu actividad de hoy?")) {
             ['total', 'desayuno', 'almuerzo', 'merienda', 'cena'].forEach(m => { consumido[m] = { kcal: 0, prot: 0, carb: 0, gras: 0 }; });
-            gastoActividadFisica = 0; 
-            document.getElementById('historial-lista').innerHTML = '<p id="msg-vacio" style="color: #999; font-style: italic; text-align: center;">Aún no anotaste nada hoy.</p>';
+            gastoActividades = { pre_desayuno: 0, post_desayuno: 0, post_almuerzo: 0, post_merienda: 0 };
+            document.getElementById('historial-lista').innerHTML = '<p id="msg-vacio" style="color: #a4b0be; font-style: italic; text-align: center;">Aún no anotaste nada hoy.</p>';
             guardarEnNube();
         }
     }
@@ -763,7 +820,7 @@
         const p = parseFloat(document.getElementById('input-peso').value);
         const a = parseFloat(document.getElementById('input-altura').value);
         const e = parseFloat(document.getElementById('input-edad').value);
-        if (!p || !a || !e) return alert("Completa tus datos.");
+        if (!p || !a || !e) return alert("Completa tus datos numéricos.");
         PERFIL.peso = p; PERFIL.altura = a; PERFIL.edad = e;
         guardarEnNube(); alert(`¡Datos guardados!`);
     }
@@ -821,7 +878,7 @@
         const key = document.getElementById('select-recetario').value; const div = document.getElementById('detalle-receta');
         if (!key) { div.style.display = 'none'; return; }
         const r = baseAlimentos[key];
-        let html = `<h4 style="margin:0 0 5px 0;color:var(--primary);">${r.nombre.replace(" (1 porción = 100%)", "")}</h4><span style="font-size:0.85em;color:var(--text-muted);">Prot: ${r.prot.toFixed(1)}g | Carb: ${r.carb.toFixed(1)}g | Gras: ${r.gras.toFixed(1)}g</span><ul style="margin-top:5px;margin-bottom:0;padding-left:20px;font-size:0.9em;">`;
+        let html = `<h4 style="margin:0 0 5px 0;color:var(--primary);">${r.nombre.replace(" (1 porción = 100%)", "")}</h4><span style="font-size:0.85em;color:var(--text-muted);">Prot: ${r.prot.toFixed(1)}g | Carb: ${r.carb.toFixed(1)}g | Gras: ${r.gras.toFixed(1)}g</span><ul style="margin-top:5px;margin-bottom:0;padding-left:20px;font-size:0.9em;color:var(--text-main);">`;
         r.ingredientes.forEach(ing => { html += `<li><strong>${ing.gramos}g</strong> de ${ing.nombre}</li>`; });
         div.innerHTML = html + `</ul>`; div.style.display = 'block';
     }
@@ -830,6 +887,29 @@
         const key = document.getElementById('select-recetario').value;
         if(!key) return alert("Selecciona una receta arriba.");
         if(confirm(`¿Eliminar receta?`)) { delete baseAlimentos[key]; document.getElementById('detalle-receta').style.display = 'none'; guardarEnNube(); }
+    }
+
+    function exportarDatos() {
+        const backup = { alimentos: baseAlimentos, consumo_hoy: consumido, gasto_actividades: gastoActividades, perfil: PERFIL };
+        const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup, null, 4));
+        a.download = `respaldo_mama_${new Date().toISOString().slice(0, 10)}.txt`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+
+    function importarDatos(input) {
+        if (!input.files[0]) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (data.alimentos && confirm("¿Estás segura? Esto reemplazará los datos actuales.")) {
+                    baseAlimentos = data.alimentos; consumido = data.consumo_hoy || consumido;
+                    gastoActividades = data.gasto_actividades || { pre_desayuno: 0, post_desayuno: 0, post_almuerzo: 0, post_merienda: 0 }; 
+                    PERFIL = data.perfil || PERFIL;
+                    guardarEnNube(); alert("¡Base de datos restaurada!");
+                }
+            } catch (error) { alert("Error al leer el archivo."); }
+        };
+        reader.readAsText(input.files[0]);
     }
 </script>
 </body>
