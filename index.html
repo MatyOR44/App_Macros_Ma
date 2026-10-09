@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Salud & Nutrición</title>
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#ff9a9e">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <style>
+        /* --- DISEÑO PASTEL, CÁLIDO Y FEMENINO --- */
+        :root {
+            /* Degradado de fondo cálido (Melocotón / Rosa pastel) */
+            --bg-gradient-1: #ffecd2; 
+            --bg-gradient-2: #fcb69f;
+            
+            --text-main: #4a4a4a;
+            --text-muted: #8e8e8e;
+            
+            /* Colores principales de la interfaz */
+            --primary: #ff758c; /* Rosa vivo y cálido para botones principales */
+            --secondary: #a1c4fd; /* Azul pastel para elementos secundarios */
+            --warning: #ffb8b8; 
+            --danger: #ff8fa3;
+            
+            /* Colores de Macros suaves */
+            --prot-color: #ffb6b9; 
+            --carb-color: #bae1ff; 
+            --gras-color: #fff0b3; 
+            --act-color: #81ecec;
+
+            --glass-bg: rgba(255, 255, 255, 0.88);
+            --glass-border: rgba(255, 255, 255, 0.6);
+            --glass-shadow: 0 8px 32px 0 rgba(252, 182, 159, 0.2);
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-image: linear-gradient(120deg, var(--bg-gradient-1) 0%, var(--bg-gradient-2) 100%);
+            background-attachment: fixed;
+            color: var(--text-main); 
+            margin: 0; 
+            padding: 20px 10px 90px 10px; 
+            display: flex; 
+            justify-content: center; 
+            min-height: 100vh;
+        }
+        
+        .container { max-width: 650px; width: 100%; }
+
+        .tab-content { display: none; animation: fadeIn 0.4s ease; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            border-top: 1px solid rgba(0,0,0,0.05);
+            display: flex; justify-content: space-around;
+            padding: 10px 0 calc(10px + env(safe-area-inset-bottom)) 0;
+            z-index: 1000; box-shadow: 0 -4px 25px rgba(252, 182, 159, 0.3);
+        }
+        
+        .nav-item {
+            display: flex; flex-direction: column; align-items: center;
+            text-decoration: none; color: #b2bec3;
+            font-size: 0.7em; font-weight: 600; gap: 4px; width: 25%;
+            transition: color 0.3s, transform 0.2s;
+        }
+        .nav-item .material-icons-round { font-size: 26px; transition: transform 0.2s; }
+        .nav-item.active { color: var(--primary); }
+        .nav-item.active .material-icons-round { transform: scale(1.15); }
+
+        .card { 
+            background: var(--glass-bg); 
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            padding: 25px; border-radius: 20px;
+            box-shadow: var(--glass-shadow); margin-bottom: 25px; 
+        }
+
+        h2 { margin-top: 0; color: #ff758c; font-weight: 700; font-size: 1.4em; border-bottom: 2px solid rgba(255, 117, 140, 0.1); padding-bottom: 10px; margin-bottom: 20px; letter-spacing: -0.5px;}
+        h3 { font-size: 1.15em; font-weight: 600; color: #4a4a4a; margin-bottom: 15px;}
+        
+        .macro-group { margin-bottom: 15px; }
+        .macro-header { display: flex; justify-content: space-between; font-weight: 600; font-size: 0.95em; margin-bottom: 8px; color: #4a4a4a;}
+        .progress-bg { background-color: rgba(0,0,0,0.04); border-radius: 12px; height: 16px; width: 100%; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 12px; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+        .text-remaining { font-size: 0.8em; color: var(--text-muted); margin-top: 5px; display: block; font-weight: 600;}
+        .text-meta-dinamica { font-size: 1em; color: var(--primary); font-weight: 700; display: block; margin-top: 5px; margin-bottom: 15px; background: rgba(255, 117, 140, 0.1); padding: 8px 12px; border-radius: 8px; display: inline-block;}
+
+        .meals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        .meal-card { background: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.9); padding: 18px; border-radius: 16px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 10px rgba(0,0,0,0.02);}
+        .meal-title { font-weight: 700; text-align: center; margin-bottom: 15px; font-size: 0.95em; color: #4a4a4a; }
+        .circles-container { display: flex; justify-content: space-around; }
+        .circle-wrap { text-align: center; }
+        .circle { width: 45px; height: 45px; border-radius: 50%; background: conic-gradient(#e0e0e0 100%, #e0e0e0 0); display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; transition: background 0.5s; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);}
+        .circle-inner { width: 35px; height: 35px; border-radius: 50%; background: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 0.65em; font-weight: 700; color: #4a4a4a; box-shadow: 0 2px 5px rgba(0,0,0,0.05);}
+        .circle-label { font-size: 0.75em; font-weight: 600; color: var(--text-muted); }
+        .meal-kcal { text-align: center; font-size: 0.85em; font-weight: 700; color: #ff758c; margin-top: 15px; background: rgba(255, 117, 140, 0.08); padding: 8px; border-radius: 8px; }
+
+        label { display: block; margin-top: 15px; font-weight: 600; font-size: 0.9em; color: #4a4a4a;}
+        select, input, textarea { width: 100%; padding: 14px 15px; margin-top: 8px; border: 1px solid rgba(0,0,0,0.08); border-radius: 10px; box-sizing: border-box; font-family: 'Inter', sans-serif; font-size: 15px; background-color: #fff; transition: border-color 0.3s; color: #4a4a4a;}
+        select:focus, input:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(255, 117, 140, 0.2);}
+        
+        .tara-inputs, .macro-inputs { display: none; gap: 10px; }
+        .tara-inputs.active, .macro-inputs.active { display: flex; }
+        .act-seccion { display: none; background: rgba(0,0,0,0.02); padding: 15px; border-radius: 10px; margin-top: 15px; }
+        .act-seccion.active { display: block; }
+
+        button { background-color: var(--primary); color: white; border: none; padding: 16px; width: 100%; border-radius: 12px; font-size: 1em; font-weight: 600; cursor: pointer; margin-top: 20px; box-shadow: 0 4px 10px rgba(255, 117, 140, 0.3); transition: transform 0.1s, filter 0.2s;}
+        button:hover { filter: brightness(1.05); }
+        button:active { transform: scale(0.98); }
+        .btn-blue { background-color: var(--secondary); box-shadow: 0 4px 10px rgba(161, 196, 253, 0.4); }
+        .btn-cyan { background-color: var(--act-color); box-shadow: 0 4px 10px rgba(129, 236, 236, 0.4); }
+        .btn-red { background-color: var(--danger); box-shadow: 0 4px 10px rgba(255, 143, 163, 0.3); }
+        .btn-outline-red { background: transparent; border: 2px solid var(--danger); color: var(--danger); box-shadow: none; padding: 12px;}
+
+        .log-item { border-bottom: 1px solid rgba(0,0,0,0.05); padding: 15px 0; font-size: 0.95em; }
+        .log-item:last-child { border-bottom: none; }
+        .btn-delete { background: none; border: none; font-size: 1.3em; cursor: pointer; padding: 5px; margin-top: 0; width: auto; color: var(--danger); box-shadow: none;}
+        .badge { background: rgba(255, 117, 140, 0.1); color: var(--primary); padding: 4px 10px; border-radius: 8px; font-size: 0.75em; font-weight: 700; margin-right: 6px; }
+        .combo-row { display: flex; gap: 10px; margin-top: 10px; align-items: center; background: rgba(255,255,255,0.7); padding: 10px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.03);}
+        
+        @media (max-width: 500px) { .meals-grid { grid-template-columns: 1fr; } .combo-row { flex-direction: column; gap: 5px; } }
+    </style>
+</head>
+<body>
+
+<nav class="bottom-nav">
+    <a href="#" class="nav-item active" onclick="switchTab('tab-resumen', this)">
+        <span class="material-icons-round">favorite</span>
+        <span>Mi Día</span>
+    </a>
+    <a href="#" class="nav-item" onclick="switchTab('tab-registro', this)">
+        <span class="material-icons-round">add_circle</span>
+        <span>Anotar</span>
+    </a>
+    <a href="#" class="nav-item" onclick="switchTab('tab-recetario', this)">
+        <span class="material-icons-round">menu_book</span>
+        <span>Alimentos</span>
+    </a>
+    <a href="#" class="nav-item" onclick="switchTab('tab-perfil', this)">
+        <span class="material-icons-round">face</span>
+        <span>Mi Perfil</span>
+    </a>
+</nav>
+
+<div class="container">
+
+    <!-- ============================================== -->
+    <!-- TAB 1: RESUMEN                                 -->
+    <!-- ============================================== -->
+    <div id="tab-resumen" class="tab-content active">
+        <div class="card">
+            <h2>🌸 Mi Progreso de Hoy</h2>
+            
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 250px;">
+                    <label style="margin-top: 0;">¿Qué día es hoy?</label>
+                    <select id="select-dia" onchange="actualizarDashboard()">
+                        <option value="semana">Día de Semana (Activo)</option>
+                        <option value="finde">Fin de Semana (Relax)</option>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 250px;">
+                    <label style="margin-top: 0;">Mi Objetivo Actual:</label>
+                    <select id="select-objetivo" onchange="actualizarDashboard()">
+                        <option value="1.00">⚖️ Mantenimiento de Peso</option>
+                        <option value="0.95" selected>🍃 Déficit Suave (-5%)</option>
+                        <option value="0.85">📉 Déficit Moderado (-15%)</option>
+                    </select>
+                </div>
+            </div>
+
+            <span id="txt-meta-info" class="text-meta-dinamica">Conectando...</span>
+            
+            <div class="macro-group" style="margin-top: 15px;">
+                <div class="macro-header"><span>🔥 Calorías Consumidas</span> <span id="lbl-total-kcal">0 / 0</span></div>
+                <div class="progress-bg"><div id="bar-total-kcal" class="progress-fill" style="width: 0%; background-color: var(--warning);"></div></div>
+                <span id="rem-total-kcal" class="text-remaining"></span>
+            </div>
+            <div class="macro-group">
+                <div class="macro-header"><span>🍗 Proteínas (Salud Muscular)</span> <span id="lbl-total-prot">0 / 0</span></div>
+                <div class="progress-bg"><div id="bar-total-prot" class="progress-fill" style="width: 0%; background-color: var(--prot-color);"></div></div>
+                <span id="rem-total-prot" class="text-remaining"></span>
+            </div>
+            <div class="macro-group">
+                <div class="macro-header"><span>🌾 Carbohidratos (Energía)</span> <span id="lbl-total-carb">0 / 0</span></div>
+                <div class="progress-bg"><div id="bar-total-carb" class="progress-fill" style="width: 0%; background-color: var(--carb-color);"></div></div>
+                <span id="rem-total-carb" class="text-remaining"></span>
+            </div>
+            <div class="macro-group">
+                <div class="macro-header"><span>🥑 Grasas (Salud Hormonal)</span> <span id="lbl-total-gras">0 / 0</span></div>
+                <div class="progress-bg"><div id="bar-total-gras" class="progress-fill" style="width: 0%; background-color: var(--gras-color);"></div></div>
+                <span id="rem-total-gras" class="text-remaining"></span>
+            </div>
+            
+            <button class="btn-red" style="margin-top: 15px; background-color: #ff8fa3; box-shadow: 0 4px 10px rgba(255, 143, 163, 0.3);" onclick="reiniciarDia()">✨ Comenzar un Nuevo Día</button>
+        </div>
+
+        <div class="card">
+            <h2>🍽️ Mis Comidas</h2>
+            <div class="meals-grid">
+                <div class="meal-card">
+                    <div class="meal-title">☕ Desayuno</div>
+                    <div class="circles-container">
+                        <div class="circle-wrap"><div class="circle" id="circ-desayuno-prot"><div class="circle-inner" id="txt-desayuno-prot">0/0</div></div><div class="circle-label">Prot</div></div>
+                        <div class="circle-wrap"><div class="circle" id="circ-desayuno-carb"><div class="circle-inner" id="txt-desayuno-carb">0/0</div></div><div class="circle-label">Carb</div></div>
+                        <div class="circle-wrap"><div class="circle" id="circ-desayuno-gras"><div class="circle-inner" id="txt-desayuno-gras">0/0</div></div><div class="circle-label">Gras</div></div>
+                    </div>
+                    <div class="meal-kcal" id="kcal-desayuno">🔥 0 / 0 kcal</div>
+                </div>
+                <div class="meal-card">
+                    <div class="meal-title">🍛 Almuerzo</div>
+                    <div class="circles-container">
+                        <div class="circle-wrap"><div class="circle" id="circ-almuerzo-prot"><div class="circle-inner" id="txt-almuerzo-prot">0/0</div></div><div class="circle-label">Prot</div></div>
+                        <div class="circle-wrap"><div class="circle" id="circ-almuerzo-carb"><div class="circle-inner" id="txt-almuerzo-carb">0/0</div></div><div class="circle-label">Carb</div></div>
+                        <div class="circle-wrap"><div class="circle" id="circ-almuerzo-gras"><div class="circle-inner" id="txt-almuerzo-gras">0/0</div></div><div class="circle-label">Gras</div></div>
+                    </div>
+                    <div class="meal-kcal" id="kcal-almuerzo">🔥 0 / 0 kcal</div>
+                </div>
+                <div class="meal-card">
+                    <div class="meal-title">🍎 Merienda</div>
+                    <div class="circles-container">
+                        <div class="circle-wrap"><div class="circle" id="circ-merienda-prot"><div class="circle-inner" id="txt-merienda-prot">0/0</div></div><div class="circle-label">Prot</div></div>
+                        <div class="circle-wrap"><div class="circle" id="circ-merienda-carb"><div class="circle-inner" id="txt-merienda-carb">0/0</div></div><div class="circle-label">Carb</div></div>
+                        <div class="circle-wrap"><div class="circle" id="circ-merienda-gras"><div class="circle-inner" id="txt-merienda-gras">0/0</div></div><div class="circle-label">Gras</div></div>
+                    </div>
+                    <div class="meal-kcal" id="kcal-merienda">🔥 0 / 0 kcal</div>
+                </div>
+                <div class="meal-card">
+                    <div class="meal-title">🥩 Cena</div>
+                    <div class="circles-container">
+                        <div class="circle-wrap"><div class="circle" id="circ-cena-prot"><div class="circle-inner" id="txt-cena-prot">0/0</div></div><div class="circle-label">Prot</div></div>
+                        <div class="circle-wrap"><div class="circle" id="circ-cena-carb"><div class="circle-inner" id="txt-cena-carb">0/0</div></div><div class="circle-label">Carb</div></div>
+                        <div class="circle-wrap"><div class="circle" id="circ-cena-gras"><div class="circle-inner" id="txt-cena-gras">0/0</div></div><div class="circle-label">Gras</div></div>
+                    </div>
+                    <div class="meal-kcal" id="kcal-cena">🔥 0 / 0 kcal</div>
+                </div>
+            </div>
+        </div>
+    </div> <!-- FIN TAB 1 -->
+
+
+    <!-- ============================================== -->
+    <!-- TAB 2: REGISTRO                                -->
+    <!-- ============================================== -->
+    <div id="tab-registro" class="tab-content">
+        <div class="card">
+            <h2>📝 Anotar una Comida</h2>
+            <label>¿Qué comida fue?</label>
+            <select id="select-comida">
+                <option value="desayuno">☕ Desayuno</option>
+                <option value="almuerzo">🍛 Almuerzo</option>
+                <option value="merienda">🍎 Merienda</option>
+                <option value="cena">🥩 Cena</option>
+            </select>
+            
+            <label>Escribe el alimento o receta</label>
+            <input type="text" id="input-alimento" list="lista-alimentos" placeholder="Ej: Pollo, Manzana, Huevo...">
+            <datalist id="lista-alimentos"></datalist>
+            
+            <label>¿Cómo lo vas a pesar?</label>
+            <select id="select-metodo" onchange="toggleMetodo()">
+                <option value="directo">Peso directo en la balanza (gramos)</option>
+                <option value="tara">Pesando el envase (Tara)</option>
+            </select>
+            
+            <div id="input-directo">
+                <input type="number" id="val-gramos" placeholder="Gramos que comiste (Ej: 150)">
+            </div>
+            <div id="input-tara" class="tara-inputs">
+                <input type="number" id="val-antes" placeholder="Peso del envase lleno (g)">
+                <input type="number" id="val-despues" placeholder="Peso del envase después (g)">
+            </div>
+            
+            <button onclick="registrarConsumo()">Guardar Comida</button>
+        </div>
+
+        <div class="card">
+            <h2>📖 Lo que comí hoy</h2>
+            <div id="historial-lista">
+                <p id="msg-vacio" style="color: #a4b0be; font-style: italic; text-align: center;">Aún no anotaste nada hoy.</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🏃‍♀️ Actividad Física</h2>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-top: 0;">Si saliste a caminar o hiciste ejercicio, anótalo aquí para ganar calorías extra para el día.</p>
+            
+            <label>Actividad</label>
+            <select id="cardio-tipo">
+                <option value="caminar">Caminata Ligera / Paseo</option>
+                <option value="caminar_rapido">Caminata Rápida</option>
+                <option value="bicicleta">Bicicleta Fija o de Paseo</option>
+                <option value="gimnasia">Gimnasia / Pilates / Yoga</option>
+            </select>
+            <label>¿Cuántos minutos duró?</label>
+            <input type="number" id="cardio-tiempo" placeholder="Ej: 45">
+            <button class="btn-cyan" onclick="registrarActividad()">Anotar Actividad</button>
+        </div>
+    </div> <!-- FIN TAB 2 -->
+
+
+    <!-- ============================================== -->
+    <!-- TAB 3: RECETARIO Y ALIMENTOS                   -->
+    <!-- ============================================== -->
+    <div id="tab-recetario" class="tab-content">
+        <div class="card">
+            <h2>➕ Agregar un Alimento Nuevo</h2>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-top: 0;">Copia los datos de la etiqueta del paquete (por cada 100 gramos).</p>
+            <input type="text" id="nuevo-nombre" placeholder="Nombre del alimento">
+            <div class="macro-inputs active">
+                <input type="number" id="nuevo-prot" placeholder="Proteínas (g)">
+                <input type="number" id="nuevo-carb" placeholder="Carbohidratos (g)">
+                <input type="number" id="nuevo-gras" placeholder="Grasas (g)">
+            </div>
+            <button class="btn-blue" onclick="guardarNuevoAlimento()">Guardar en mi lista</button>
+            <button class="btn-outline-red" style="margin-top: 15px;" onclick="eliminarDeBase()">Borrar el alimento escrito arriba</button>
+        </div>
+
+        <div class="card">
+            <h2>🥣 Crear una Receta</h2>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-top: 0; line-height: 1.4;">Mezcla varios ingredientes. Luego podrás anotar "100g de mi receta" y la app calculará todo sola.</p>
+            <input type="text" id="combo-nombre" placeholder="Nombre de tu Receta (Ej: Tarta de Zapallo)">
+            <div id="combo-ingredientes"></div>
+            <button style="background: rgba(255, 117, 140, 0.1); color: var(--primary); box-shadow: none;" onclick="agregarFilaCombo()">➕ Agregar ingrediente</button>
+            <button onclick="guardarCombo()" style="margin-top: 15px;">💾 Guardar Receta</button>
+        </div>
+        
+        <div class="card">
+            <h2>📖 Mis Recetas Guardadas</h2>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-top: 0;">Consulta los ingredientes exactos de las recetas que has creado.</p>
+            <select id="select-recetario" onchange="mostrarDetalleReceta()">
+                <option value="">-- Seleccionar Receta --</option>
+            </select>
+            <div id="detalle-receta" style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.7); border-radius: 12px; border: 1px solid rgba(0,0,0,0.05); display: none;"></div>
+            <button class="btn-outline-red" style="margin-top: 15px;" onclick="eliminarReceta()">🗑️ Eliminar Receta Seleccionada</button>
+        </div>
+    </div> <!-- FIN TAB 3 -->
+
+
+    <!-- ============================================== -->
+    <!-- TAB 4: PERFIL Y AJUSTES                        -->
+    <!-- ============================================== -->
+    <div id="tab-perfil" class="tab-content">
+        <div class="card">
+            <h2>👤 Mis Datos Personales</h2>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-top: 0;">Tus calorías se calculan en base a tu cuerpo actual. ¡Mantenlos al día!</p>
+            <div style="display: flex; gap: 10px;">
+                <div style="flex: 1;">
+                    <label>Peso (kg)</label>
+                    <input type="number" id="input-peso" step="0.1">
+                </div>
+                <div style="flex: 1;">
+                    <label>Altura (cm)</label>
+                    <input type="number" id="input-altura">
+                </div>
+                <div style="flex: 1;">
+                    <label>Edad</label>
+                    <input type="number" id="input-edad">
+                </div>
+            </div>
+            <button onclick="guardarPerfil()">Guardar Cambios</button>
+        </div>
+
+        <div class="card" style="border-top: 4px solid var(--secondary);">
+            <h2>💾 Copia de Seguridad</h2>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-top: 0;">Tus datos ya están guardados en internet de forma segura y privada, pero puedes hacer una copia extra aquí.</p>
+            <button class="btn-blue" onclick="exportarDatos()">📥 Descargar Copia en mi celular</button>
+            <input type="file" id="input-importar" style="display:none" accept=".txt" onchange="importarDatos(this)">
+            <button class="btn-cyan" style="margin-top: 10px;" onclick="document.getElementById('input-importar').click()">📤 Restaurar Copia</button>
+        </div>
+    </div> <!-- FIN TAB 4 -->
+
+</div> <!-- Fin Container -->
+
+<script>
+    // --- NAVEGACIÓN ---
+    function switchTab(tabId, element) {
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        if(element) element.classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // --- CONFIGURACIÓN CLOUD (Carpeta Separada para Mamá) ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyAuBsFDSQlx2ye8PcqdpJor6A29wag7zuE",
+        authDomain: "macros-app-pro-e8702.firebaseapp.com",
+        projectId: "macros-app-pro-e8702",
+        storageBucket: "macros-app-pro-e8702.firebasestorage.app",
+        messagingSenderId: "7677248069",
+        appId: "1:7677248069:web:10f41205bdb57aa61b192c"
+    };
+
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const db = firebase.firestore();
+    // CLAVE: Guarda en una carpeta distinta
+    const docRef = db.collection("panel_macros").doc("datos_mama");
+
+    // --- DATOS LOCALES INICIALES (Perfil Femenino Adaptado) ---
+    let PERFIL = { peso: 65.0, edad: 50, altura: 160 };
+    let BASE_KCAL = 1500; 
+    let gastoActividadFisica = 0; 
+    let misNotasRecetas = {};
+
+    const metas = { total: { kcal:0, prot:0, carb:0, gras:0 }, desayuno: { kcal:0, prot:0, carb:0, gras:0 }, almuerzo: { kcal:0, prot:0, carb:0, gras:0 }, merienda: { kcal:0, prot:0, carb:0, gras:0 }, cena: { kcal:0, prot:0, carb:0, gras:0 } };
+    let consumido = { total: { kcal:0, prot:0, carb:0, gras:0 }, desayuno: { kcal:0, prot:0, carb:0, gras:0 }, almuerzo: { kcal:0, prot:0, carb:0, gras:0 }, merienda: { kcal:0, prot:0, carb:0, gras:0 }, cena: { kcal:0, prot:0, carb:0, gras:0 } };
+
+    // Lista Base Completa
+    let baseAlimentos = {
+        "aceite_girasol": { nombre: "Aceite de Girasol", prot: 0, carb: 0, gras: 100 },
+        "aceite_girasol_cucharada": { nombre: "Aceite de Girasol (Cucharada)", prot: 0, carb: 0, gras: 5.6 },
+        "aceite_oliva": { nombre: "Aceite de Oliva", prot: 0, carb: 0, gras: 100 },
+        "aceitunas": { nombre: "Aceitunas (Peso sin carozo)", prot: 1.0, carb: 3.5, gras: 15.0 },
+        "acelga": { nombre: "Acelga", prot: 1.8, carb: 3.7, gras: 0.2 },
+        "agua_saborizada": { nombre: "Agua Saborizada (Aquarius/Levité)", prot: 0.0, carb: 6.0, gras: 0.0 },
+        "aguacate": { nombre: "Aguacate", prot: 2.0, carb: 8.5, gras: 14.7 },
+        "alfajor_maicena": { nombre: "Alfajor de Maicena", prot: 6, carb: 65, gras: 18 },
+        "almendras": { nombre: "Almendras", prot: 21.2, carb: 21.6, gras: 49.9 },
+        "arroz_blanco": { nombre: "Arroz Blanco (Crudo)", prot: 6.9, carb: 78, gras: 0 },
+        "arroz_blanco_cocido": { nombre: "Arroz Blanco (Cocido)", prot: 5, carb: 23, gras: 6.9 },
+        "arvejas": { nombre: "Arvejas", prot: 9.23, carb: 16.15, gras: 1.3 },
+        "atun_lata": { nombre: "Atun (Lata)", prot: 25, carb: 0, gras: 0 },
+        "avena": { nombre: "Avena Tradicional", prot: 13, carb: 56.7, gras: 8 },
+        "banana": { nombre: "Banana", prot: 1.1, carb: 22.8, gras: 0.3 },
+        "batata": { nombre: "Batata", prot: 1.6, carb: 20.1, gras: 0.1 },
+        "batata_hervida": { nombre: "Batata (Hervida)", prot: 1.5, carb: 20.0, gras: 0.2 },
+        "batata_horno": { nombre: "Batata (Al Horno)", prot: 2.0, carb: 22.5, gras: 0.3 },
+        "berenjena": { nombre: "Berenjena", prot: 1.0, carb: 5.9, gras: 0.2 },
+        "biscochitos": { nombre: "Biscochitos", prot: 9, carb: 50, gras: 30 },
+        "bolitas_energeticas": { nombre: "Bolitas Energéticas (Avena/Maní)", prot: 15, carb: 43.7, gras: 24.1 },
+        "bondiola_cerdo": { nombre: "Bondiola (Cerdo)", prot: 24.0, carb: 0.0, gras: 19.0 },
+        "budin_pan": { nombre: "Budin de Pan", prot: 6, carb: 40, gras: 5 },
+        "cacao_nesquik": { nombre: "Cacao (Nesquik)", prot: 5.7, carb: 85.7, gras: 0 },
+        "carne_picada": { nombre: "Carne picada (Res)", prot: 26.0, carb: 0.0, gras: 15.0 },
+        "cebolla_estofado": { nombre: "Cebolla (Estofado)", prot: 2, carb: 18.5, gras: 15 },
+        "choclo": { nombre: "Choclo", prot: 3.3, carb: 18.7, gras: 1.4 },
+        "choclo_cremoso": { nombre: "Choclo Cremoso", prot: 1.4, carb: 14, gras: 1 },
+        "chocolate_block": { nombre: "Chocolate Block (Cofler c/ Maní)", prot: 11.0, carb: 52.0, gras: 33.0 },
+        "chorizo": { nombre: "Chorizos", prot: 15.0, carb: 2.0, gras: 31.0 },
+        "coca_cola": { nombre: "Coca Cola", prot: 0, carb: 7.5, gras: 0 },
+        "costeleta_cerdo": { nombre: "Costeletas (Cerdo)", prot: 27.0, carb: 0.0, gras: 12.0 },
+        "costeleta_res": { nombre: "Costeletas (Res)", prot: 27.0, carb: 0.0, gras: 13.0 },
+        "costillas_cerdo": { nombre: "Costillas (Cerdo)", prot: 26, carb: 0, gras: 29 },
+        "costillas_res": { nombre: "Costillas (Res)", prot: 22.0, carb: 0.0, gras: 26.0 },
+        "cuadrada_res": { nombre: "Cuadrada (Res)", prot: 29.0, carb: 0.0, gras: 6.0 },
+        "dulce_leche": { nombre: "Dulce de Leche", prot: 5.5, carb: 55, gras: 7 },
+        "dulce_membrillo": { nombre: "Dulce de Membrillo", prot: 0, carb: 67.5, gras: 0 },
+        "durazno": { nombre: "Durazno", prot: 0.9, carb: 9.5, gras: 0.3 },
+        "empanadas_compradas": { nombre: "Empanadas de Carne (compradas)", prot: 10, carb: 22, gras: 13 },
+        "espinaca": { nombre: "Espinaca", prot: 2.9, carb: 3.6, gras: 0.4 },
+        "factura_dulcedeleche": { nombre: "Factura (Dulce de Leche)", prot: 8, carb: 55, gras: 15 },
+        "fideos_spaggetti": { nombre: "Fideos Spaghetti (Crudo)", prot: 11.25, carb: 70, gras: 1 },
+        "fideos_spaggetti_cocido": { nombre: "Fideos Spaghetti (Cocido)", prot: 6.9, carb: 24.7, gras: 7.3 },
+        "flan_preparado": { nombre: "Flan Royal/Exquisita (Prep. c/ Leche)", prot: 3.2, carb: 18.5, gras: 1.5 },
+        "frutilla": { nombre: "Frutillas", prot: 0.7, carb: 7.7, gras: 0.3 },
+        "galletas_arroz": { nombre: "Galletas de Arroz", prot: 6.7, carb: 70, gras: 0 },
+        "galletas_crackers": { nombre: "Galletitas Crackers", prot: 11, carb: 66.7, gras: 12 },
+        "garbanzos": { nombre: "Garbanzos", prot: 5.3, carb: 19.23, gras: 2.23 },
+        "gelatina_preparada": { nombre: "Gelatina Royal/Exquisita (Preparada)", prot: 1.5, carb: 14.0, gras: 0.0 },
+        "guiso_arroz1": { nombre: "Guiso de Arroz 1", prot: 4.4, carb: 10.3, gras: 3.4 },
+        "harina_0000": { nombre: "Harina de trigo 0000", prot: 10, carb: 70, gras: 0 },
+        "helado_grido_crema": { nombre: "Helado Grido (Sabores a la Crema prom.)", prot: 3.5, carb: 24.0, gras: 11.0 },
+        "huevo": { nombre: "Huevo Entero", prot: 12.6, carb: 0.8, gras: 9.6 },
+        "jamon_cocido": { nombre: "Jamón Cocido Natural", prot: 19.0, carb: 1.0, gras: 4.0 },
+        "kiwi": { nombre: "Kiwi", prot: 1.1, carb: 14.7, gras: 0.5 },
+        "leche_descremada": { nombre: "Leche (Descremada)", prot: 2.9, carb: 4.64, gras: 0.96 },
+        "leche_entera": { nombre: "Leche (Entera)", prot: 2.9, carb: 4.37, gras: 2.9 },
+        "lechuga": { nombre: "Lechuga", prot: 1.4, carb: 2.9, gras: 0.2 },
+        "lentejas_cocidas": { nombre: "Lentejas (Cocidas)", prot: 8.7, carb: 17.3, gras: 0.6 },
+        "lentejas_crudas": { nombre: "Lentejas (Crudas)", prot: 21.7, carb: 43.3, gras: 1.5 },
+        "maizena": { nombre: "Maizena", prot: 0, carb: 85, gras: 0 },
+        "mandarina": { nombre: "Mandarina", prot: 0.8, carb: 13.3, gras: 0.3 },
+        "mani": { nombre: "Mani sin sal", prot: 26, carb: 11, gras: 50 },
+        "manteca": { nombre: "Manteca", prot: 0, carb: 0, gras: 83 },
+        "manzana": { nombre: "Manzana", prot: 0.3, carb: 13.8, gras: 0.2 },
+        "matambre_cerdo": { nombre: "Matambre (Cerdo)", prot: 24.0, carb: 0.0, gras: 21.0 },
+        "matambre_res": { nombre: "Matambre (Res)", prot: 26.0, carb: 0.0, gras: 15.0 },
+        "mayonesa_hellmanns": { nombre: "Mayonesa (Hellmanns Clásica)", prot: 1.0, carb: 4.0, gras: 40.0 },
+        "medialuna_manteca": { nombre: "Medialuna de Manteca", prot: 7.0, carb: 45.0, gras: 17.0 },
+        "merluza": { nombre: "Merluza", prot: 23.0, carb: 0.0, gras: 4.0 },
+        "mermelada": { nombre: "Mermelada", prot: 0, carb: 65, gras: 0 },
+        "miel": { nombre: "Miel", prot: 0, carb: 82, gras: 0 },
+        "miel_cucharadida": { nombre: "Miel (Cucharadita)", prot: 0, carb: 4.1, gras: 0 },
+        "milanesa_carne_horno": { nombre: "Milanesa de Carne (Horno)", prot: 23, carb: 15, gras: 8 },
+        "milanesa_pollo_horno": { nombre: "Milanesa de Pollo (Horno)", prot: 25, carb: 15, gras: 7 },
+        "morcilla": { nombre: "Morcillas", prot: 14.0, carb: 1.5, gras: 35.0 },
+        "mortadela": { nombre: "Mortadela", prot: 14.0, carb: 3.0, gras: 25.0 },
+        "nalga_res": { nombre: "Nalga (Res)", prot: 29.5, carb: 0.0, gras: 5.5 },
+        "naranja": { nombre: "Naranja", prot: 0.9, carb: 11.8, gras: 0.1 },
+        "nueces": { nombre: "Nueces", prot: 15.2, carb: 13.7, gras: 65.2 },
+        "obispo_cerdo": { nombre: "Corte Obispo (Cerdo)", prot: 28, carb: 0, gras: 8 },
+        "obispo_res": { nombre: "Corte obispo (Res)", prot: 26.5, carb: 0.0, gras: 13.0 },
+        "osobuco_res": { nombre: "Osobuco (Res)", prot: 30.0, carb: 0.0, gras: 11.0 },
+        "pan": { nombre: "Pan Blanco", prot: 8, carb: 50, gras: 3 },
+        "pan_casero": { nombre: "Pan Casero (Panadería)", prot: 8.0, carb: 50.0, gras: 10.0 },
+        "pan_lactal_integral": { nombre: "Pan Lactal (Integral)", prot: 8.5, carb: 38, gras: 4.5 },
+        "pan_panchos_lactal": { nombre: "Pan de panchos (Lactal)", prot: 10.3, carb: 48.6, gras: 4.3 },
+        "papa": { nombre: "Papa", prot: 2.0, carb: 17.5, gras: 0.1 },
+        "papa_estofado": { nombre: "Papas (Estofado)", prot: 2, carb: 17.5, gras: 2 },
+        "papa_hervida": { nombre: "Papa (Hervida)", prot: 1.8, carb: 20.0, gras: 0.1 },
+        "papa_horno": { nombre: "Papas (Horno)", prot: 2.5, carb: 22.5, gras: 4 },
+        "pasas_uva": { nombre: "Pasas de Uvas", prot: 3.1, carb: 79.2, gras: 0.5 },
+        "pasta_mani": { nombre: "Pasta de Maní Natural", prot: 26, carb: 10, gras: 49 },
+        "pastel_papas": { nombre: "Pastel de Papas", prot: 9.7, carb: 12.7, gras: 7.7 },
+        "pata_muslo_pollo": { nombre: "Pata-muslo (Pollo)", prot: 24.0, carb: 0.0, gras: 10.0 },
+        "pechuga_pollo": { nombre: "Pechuga de Pollo (Cruda)", prot: 23, carb: 0, gras: 1.5 },
+        "pechuga_pollo_cocida": { nombre: "Pechuga de Pollo (Cocida)", prot: 31, carb: 0, gras: 3.6 },
+        "pera": { nombre: "Pera", prot: 0.4, carb: 15.2, gras: 0.1 },
+        "picadillo": { nombre: "Picadillo de Carne / Paté (Lata)", prot: 10.0, carb: 4.0, gras: 22.0 },
+        "pochoclos_dulces": { nombre: "Pochoclos (Dulces/Cine)", prot: 4.0, carb: 75.0, gras: 10.0 },
+        "polenta": { nombre: "Polenta (Cruda)", prot: 7, carb: 78, gras: 0.8 },
+        "polenta_cocida": { nombre: "Polenta (Cocida)", prot: 1.75, carb: 19.5, gras: 0.2 },
+        "prepizza_panaderia": { nombre: "Prepizza (Masa de panadería c/salsa)", prot: 8.5, carb: 52.0, gras: 4.0 },
+        "queso_crema_casancrem": { nombre: "Queso Crema (Casancrem Clásico)", prot: 5.8, carb: 4.3, gras: 21.0 },
+        "queso_cremoso": { nombre: "Queso Cremoso", prot: 20, carb: 0, gras: 23.3 },
+        "queso_tybo": { nombre: "Queso Tybo (en barra)", prot: 24.0, carb: 1.5, gras: 24.0 },
+        "rasqueta": { nombre: "Rasqueta/Corderito", prot: 8, carb: 45, gras: 25 },
+        "remolacha": { nombre: "Remolacha", prot: 1.6, carb: 9.6, gras: 0.2 },
+        "repollo": { nombre: "Repollo", prot: 1.3, carb: 5.8, gras: 0.1 },
+        "rinon_res": { nombre: "Riñón (Res)", prot: 23.0, carb: 1.0, gras: 5.0 },
+        "salame_milan": { nombre: "Salame Milán", prot: 22.0, carb: 1.5, gras: 35.0 },
+        "salchicha_viena": { nombre: "Salchichas (tipo Paty/Swift)", prot: 11.0, carb: 2.5, gras: 20.0 },
+        "salchichas_paladini": { nombre: "Salchichas (Paladini)", prot: 6, carb: 3.2, gras: 9 },
+        "sandia": { nombre: "Sandía", prot: 0.6, carb: 7.6, gras: 0.2 },
+        "semillas_chia": { nombre: "Semillas de Chia", prot: 16.5, carb: 8, gras: 30.5 },
+        "semillas_lino": { nombre: "Semillas de Lino", prot: 18.3, carb: 28.9, gras: 42.2 },
+        "soja_texturizada": { nombre: "Soja Texturizada", prot: 52, carb: 31, gras: 1.2 },
+        "sopa_fideos": { nombre: "Sopa con Fideos", prot: 2, carb: 11, gras: 0.5 },
+        "tapa_asado_cerdo": { nombre: "Tapa de asado (Cerdo)", prot: 24.0, carb: 0.0, gras: 21.0 },
+        "tapa_asado_res": { nombre: "Tapa de asado (Res)", prot: 26.0, carb: 0.0, gras: 16.0 },
+        "tomate": { nombre: "Tomate", prot: 0.9, carb: 3.9, gras: 0.2 },
+        "tomate_perita": { nombre: "Tomate Perita", prot: 0.7, carb: 3.5, gras: 0 },
+        "tostada": { nombre: "Tostada (Pan Blanco)", prot: 8, carb: 50, gras: 3 },
+        "tostadas_pan": { nombre: "Tostadas (Pan Blanco)", prot: 8, carb: 50, gras: 3 },
+        "tutucas": { nombre: "Maíz Inflado Dulce (Tutucas)", prot: 5.0, carb: 85.0, gras: 1.5 },
+        "vacio_res": { nombre: "Vacío (Res)", prot: 26.0, carb: 0.0, gras: 17.0 },
+        "yogur_saborizado": { nombre: "Yogur Saborizado (La Serenísima)", prot: 3.0, carb: 13.0, gras: 2.8 },
+        "zanahoria": { nombre: "Zanahoria", prot: 0.9, carb: 9.6, gras: 0.2 },
+        "zanahoria_hervida": { nombre: "Zanahoria (Hervida)", prot: 0.8, carb: 8.0, gras: 0.2 },
+        "zanahoria_horno": { nombre: "Zanahoria (Al Horno)", prot: 1.0, carb: 10.5, gras: 0.3 },
+        "zapallito_verde": { nombre: "Zapallitos Verdes", prot: 1.2, carb: 3.1, gras: 0.2 },
+        "zapallo_anco": { nombre: "Zapallo Coreano (Anco)", prot: 1.0, carb: 11.7, gras: 0.1 },
+        "zapallo_anco_hervido": { nombre: "Zapallo Anco (Hervido)", prot: 0.8, carb: 8.5, gras: 0.1 },
+        "zapallo_anco_horno": { nombre: "Zapallo Anco (Al Horno)", prot: 1.0, carb: 11.5, gras: 0.2 },
+        "zucchini": { nombre: "Zucchini", prot: 1.2, carb: 3.1, gras: 0.3 },
+        "pizza__pre_pizza__receta": { nombre: "Pizza (Pre pizza) (1 porción = 100%)", prot: 66.2, carb: 159.5, gras: 58.6, ingredientes: [ { nombre: "Prepizza (Masa de panadería c/salsa)", gramos: 300 }, { nombre: "Tomate Perita", gramos: 100 }, { nombre: "Queso Cremoso", gramos: 200 } ] },
+        "pur__de_papas_receta": { nombre: "Puré de Papas (1 porción = 100%)", prot: 21.105, carb: 146.1216, gras: 15.1404, ingredientes: [ { nombre: "Papa (Hervida)", gramos: 703 }, { nombre: "Leche (Descremada)", gramos: 119 }, { nombre: "Manteca", gramos: 9 }, { nombre: "Queso Cremoso", gramos: 25 } ] },
+        "pur__de_papas": { nombre: "Puré de Papas", prot: 2.47, carb: 17, gras: 1.87 },
+        "queso_cremoso_port_salut_light__la_paulina_": { nombre: "Queso Cremoso Port Salut Light (La Paulina)", prot: 26, carb: 1.5, gras: 10.7 },
+        "guiso_de_arroz__receta_": { nombre: "Guiso de Arroz (Receta)", prot: 6.6, carb: 13, gras: 4.4 },
+        "torta_frita": { nombre: "Torta frita", prot: 7, carb: 46, gras: 25 },
+        "patitas_de_pollo__jam_n_y_queso": { nombre: "Patitas de pollo, jamón y queso", prot: 17, carb: 17, gras: 8 },
+        "huevo_entero__con_c_scara_": { nombre: "Huevo Entero (con cáscara)", prot: 11, carb: 0.6, gras: 8.5 },
+        "bifes_de_cuadrada__con_aceite_": { nombre: "Bifes de cuadrada (con aceite)", prot: 30.4, carb: 0, gras: 8.7 },
+        "fideos_matarazzo__cocidos__con_aceite_y_queso_cremoso_": { nombre: "Fideos Matarazzo (cocidos, con aceite y queso cremoso)", prot: 6.8, carb: 31.3, gras: 3.6 }
+    };
+
+    // --- LÓGICA MATEMÁTICA ---
+    function calcularGastoBase() {
+        // Fórmula Mifflin-St Jeor para MUJERES
+        const tmb = (10 * PERFIL.peso) + (6.25 * PERFIL.altura) - (5 * PERFIL.edad) - 161;
+        // Multiplicador base de actividad ligera (amas de casa / trabajo de oficina ligero)
+        BASE_KCAL = tmb * 1.3;
+    }
+
+    function renderizarUI() {
+        ['kcal', 'prot', 'carb', 'gras'].forEach(m => {
+            let act = consumido.total[m], met = metas.total[m];
+            let pct = Math.min((act / met) * 100, 100) || 0;
+            document.getElementById(`bar-total-${m}`).style.width = pct + '%';
+            document.getElementById(`lbl-total-${m}`).innerText = `${Math.round(act)} / ${Math.round(met)}`;
+            let rest = met - act;
+            document.getElementById(`rem-total-${m}`).innerText = rest >= 0 ? `Te quedan: ${Math.round(rest)}` : `Te pasaste por: ${Math.round(Math.abs(rest))}`;
+        });
+
+        const colores = { prot: 'var(--prot-color)', carb: 'var(--carb-color)', gras: 'var(--gras-color)' };
+        ['desayuno', 'almuerzo', 'merienda', 'cena'].forEach(com => {
+            ['prot', 'carb', 'gras'].forEach(macro => {
+                let act = consumido[com][macro], met = metas[com][macro];
+                let pct = Math.min((act / met) * 100, 100) || 0;
+                document.getElementById(`circ-${com}-${macro}`).style.background = `conic-gradient(${colores[macro]} ${pct}%, #e0e0e0 0)`;
+                document.getElementById(`txt-${com}-${macro}`).innerText = `${Math.round(act)}/${Math.round(met)}`;
+            });
+            document.getElementById(`kcal-${com}`).innerText = `🔥 ${Math.round(consumido[com].kcal)} / ${Math.round(metas[com].kcal)} kcal`;
+        });
+    }
+
+    function actualizarDashboard() {
+        const multiplicador = parseFloat(document.getElementById('select-objetivo').value);
+        const mantenimiento = BASE_KCAL + gastoActividadFisica;
+        
+        metas.total.kcal = mantenimiento * multiplicador;
+        
+        // Requerimientos femeninos saludables (1.5g prot por kilo, grasas al 30%)
+        metas.total.prot = PERFIL.peso * 1.5; 
+        metas.total.gras = (metas.total.kcal * 0.3) / 9;  
+        
+        let caloriasRestantesTotales = metas.total.kcal - ((metas.total.prot * 4) + (metas.total.gras * 9));
+        metas.total.carb = Math.max(0, caloriasRestantesTotales / 4);
+
+        document.getElementById('txt-meta-info').innerText = `Tu Meta de Hoy: ${metas.total.kcal.toFixed(0)} Calorías`;
+
+        // Distribución pareja durante el día
+        const rep = 0.25; // 25% para cada comida
+        const comidas = ['desayuno', 'almuerzo', 'merienda', 'cena'];
+        comidas.forEach(comida => { 
+            metas[comida].prot = metas.total.prot * rep;
+            metas[comida].carb = metas.total.carb * rep;
+            metas[comida].gras = metas.total.gras * rep;
+            metas[comida].kcal = metas.total.kcal * rep;
+        });
+
+        renderizarUI();
+    }
+
+    function actualizarDatalist() {
+        const list = document.getElementById('lista-alimentos'); list.innerHTML = '';
+        Object.keys(baseAlimentos).sort((a, b) => baseAlimentos[a].nombre.localeCompare(baseAlimentos[b].nombre)).forEach(key => {
+            let option = document.createElement('option'); option.value = baseAlimentos[key].nombre; list.appendChild(option);
+        });
+    }
+
+    function actualizarSelectRecetario() {
+        const select = document.getElementById('select-recetario'); if(!select) return;
+        select.innerHTML = '<option value="">-- Mis Recetas Guardadas --</option>';
+        Object.keys(baseAlimentos).sort((a, b) => baseAlimentos[a].nombre.localeCompare(baseAlimentos[b].nombre)).forEach(key => {
+            if (baseAlimentos[key].ingredientes) {
+                let option = document.createElement('option'); option.value = key; option.text = baseAlimentos[key].nombre.replace(" (1 porción = 100%)", ""); select.appendChild(option);
+            }
+        });
+    }
+
+    // --- CONEXIÓN A FIREBASE ---
+    function guardarEnNube() {
+        const historialHTML = document.getElementById('historial-lista').innerHTML;
+        docRef.set({ baseAlimentos, consumido, gastoActividadFisica, PERFIL, historialHTML })
+        .catch(error => console.error("Error guardando en Firebase: ", error));
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        calcularGastoBase(); actualizarDatalist(); actualizarDashboard();
+        if (typeof agregarFilaCombo === "function") agregarFilaCombo(); 
+
+        docRef.onSnapshot((doc) => {
+            if (doc.exists) {
+                const data = doc.data();
+                if (data.baseAlimentos) baseAlimentos = data.baseAlimentos;
+                if (data.consumido) consumido = data.consumido;
+                if (data.gastoActividadFisica !== undefined) gastoActividadFisica = data.gastoActividadFisica;
+                if (data.PERFIL) PERFIL = data.PERFIL;
+                if (data.historialHTML) document.getElementById('historial-lista').innerHTML = data.historialHTML;
+
+                calcularGastoBase();
+                document.getElementById('input-peso').value = PERFIL.peso;
+                document.getElementById('input-altura').value = PERFIL.altura;
+                document.getElementById('input-edad').value = PERFIL.edad;
+
+                actualizarDatalist(); actualizarDashboard(); actualizarSelectRecetario(); 
+            } else { guardarEnNube(); }
+        }, (error) => { console.error("Error:", error); });
+    });
+
+    // --- FUNCIONES DE REGISTRO ---
+    function registrarActividad() {
+        const tiempo = parseFloat(document.getElementById('cardio-tiempo').value);
+        const subTipo = document.getElementById('cardio-tipo').value;
+        if (!tiempo) return alert("Ingresa los minutos.");
+
+        let met = 3.5; // Por defecto caminata
+        if (subTipo === 'caminar_rapido') met = 5.0;
+        else if (subTipo === 'bicicleta') met = 6.0;
+        else if (subTipo === 'gimnasia') met = 4.5;
+        
+        let kcalQuemadas = met * PERFIL.peso * (tiempo / 60);
+        if (kcalQuemadas <= 0) return;
+        
+        gastoActividadFisica += kcalQuemadas;
+        document.getElementById('cardio-tiempo').value = '';
+        
+        const div = document.createElement('div'); div.className = 'log-item';
+        div.innerHTML = `<div style="display: flex; justify-content: space-between; align-items: center;"><div><strong>Actividad: ${subTipo.toUpperCase()} (${tiempo} min)</strong><br><span style="color:var(--text-muted); font-size:0.9em;">Ganaste +${kcalQuemadas.toFixed(0)} kcal para comer hoy</span></div><button class="btn-delete" onclick="eliminarActividad(this, ${kcalQuemadas})">❌</button></div>`;
+        const cont = document.getElementById('historial-lista');
+        if(document.getElementById('msg-vacio')) cont.innerHTML = '';
+        cont.insertBefore(div, cont.firstChild);
+
+        guardarEnNube(); 
+    }
+
+    function eliminarActividad(boton, kcal) {
+        gastoActividadFisica = Math.max(0, gastoActividadFisica - kcal);
+        boton.parentElement.parentElement.remove();
+        if (document.getElementById('historial-lista').children.length === 0) document.getElementById('historial-lista').innerHTML = '<p id="msg-vacio" style="color: #999; font-style: italic; text-align: center;">Aún no anotaste nada hoy.</p>';
+        guardarEnNube(); 
+    }
+
+    function toggleMetodo() {
+        const metodo = document.getElementById('select-metodo').value;
+        document.getElementById('input-directo').style.display = metodo === 'directo' ? 'block' : 'none';
+        document.getElementById('input-tara').className = metodo === 'tara' ? 'tara-inputs active' : 'tara-inputs';
+    }
+
+    function getAlimentoKey(nombre) { for(let key in baseAlimentos) { if(baseAlimentos[key].nombre === nombre) return key; } return null; }
+
+    function registrarConsumo() {
+        const nombre = document.getElementById('input-alimento').value;
+        const key = getAlimentoKey(nombre);
+        if(!key) return alert("Por favor, selecciona un alimento de la lista desplegable.");
+
+        let gramos = parseFloat(document.getElementById('val-gramos').value) || 0;
+        if (document.getElementById('select-metodo').value === 'tara') {
+            gramos = (parseFloat(document.getElementById('val-antes').value) || 0) - (parseFloat(document.getElementById('val-despues').value) || 0);
+        }
+        if (gramos <= 0) return alert("Ingresa un peso válido");
+
+        const al = baseAlimentos[key], com = document.getElementById('select-comida').value;
+        const p = (al.prot/100)*gramos, c = (al.carb/100)*gramos, g = (al.gras/100)*gramos, k = (p*4 + c*4 + g*9);
+
+        [consumido.total, consumido[com]].forEach(obj => { obj.prot += p; obj.carb += c; obj.gras += g; obj.kcal += k; });
+
+        const div = document.createElement('div'); div.className = 'log-item';
+        div.innerHTML = `<div style="display: flex; justify-content: space-between; align-items: center;"><div><strong>${com.toUpperCase()}: ${gramos.toFixed(0)}g de ${al.nombre}</strong><br><span style="color:var(--text-muted); font-size:0.9em;">+${k.toFixed(0)} kcal | Prot: ${p.toFixed(1)}g | Carb: ${c.toFixed(1)}g</span></div><button class="btn-delete" onclick="eliminarRegistro(this, ${k}, ${p}, ${c}, ${g}, '${com}')">❌</button></div>`;
+        const cont = document.getElementById('historial-lista');
+        if(document.getElementById('msg-vacio')) cont.innerHTML = '';
+        cont.insertBefore(div, cont.firstChild);
+
+        document.getElementById('val-gramos').value = '';
+        guardarEnNube(); 
+    }
+
+    function eliminarRegistro(boton, k, p, c, g, com) {
+        [consumido.total, consumido[com]].forEach(obj => { obj.prot = Math.max(0, obj.prot - p); obj.carb = Math.max(0, obj.carb - c); obj.gras = Math.max(0, obj.gras - g); obj.kcal = Math.max(0, obj.kcal - k); });
+        boton.parentElement.parentElement.remove();
+        if (document.getElementById('historial-lista').children.length === 0) document.getElementById('historial-lista').innerHTML = '<p id="msg-vacio" style="color: #999; font-style: italic; text-align: center;">Aún no anotaste nada hoy.</p>';
+        guardarEnNube();
+    }
+
+    function reiniciarDia() {
+        if(confirm("¿Seguro que quieres borrar todo lo que comiste hoy?")) {
+            ['total', 'desayuno', 'almuerzo', 'merienda', 'cena'].forEach(m => { consumido[m] = { kcal: 0, prot: 0, carb: 0, gras: 0 }; });
+            gastoActividadFisica = 0; 
+            document.getElementById('historial-lista').innerHTML = '<p id="msg-vacio" style="color: #999; font-style: italic; text-align: center;">Aún no anotaste nada hoy.</p>';
+            guardarEnNube();
+        }
+    }
+
+    function guardarPerfil() {
+        const p = parseFloat(document.getElementById('input-peso').value);
+        const a = parseFloat(document.getElementById('input-altura').value);
+        const e = parseFloat(document.getElementById('input-edad').value);
+        if (!p || !a || !e) return alert("Completa tus datos.");
+        PERFIL.peso = p; PERFIL.altura = a; PERFIL.edad = e;
+        guardarEnNube(); alert(`¡Datos guardados!`);
+    }
+
+    function guardarNuevoAlimento() {
+        const nombre = document.getElementById('nuevo-nombre').value.trim();
+        const p = parseFloat(document.getElementById('nuevo-prot').value);
+        const c = parseFloat(document.getElementById('nuevo-carb').value);
+        const g = parseFloat(document.getElementById('nuevo-gras').value);
+        if (!nombre || isNaN(p) || isNaN(c) || isNaN(g)) return alert("Completa nombre, proteínas, carbohidratos y grasas.");
+        baseAlimentos[nombre.toLowerCase().replace(/[^a-z0-9]/g, '_')] = { nombre: nombre, prot: p, carb: c, gras: g };
+        ['nuevo-nombre', 'nuevo-prot', 'nuevo-carb', 'nuevo-gras'].forEach(id => document.getElementById(id).value = '');
+        guardarEnNube(); alert(`¡Agregado a tu lista!`);
+    }
+
+    function eliminarDeBase() {
+        const nombre = document.getElementById('nuevo-nombre').value.trim();
+        const key = getAlimentoKey(nombre);
+        if(!key) return alert("Escribe el nombre exacto arriba.");
+        if(confirm(`¿Seguro que deseas borrar "${nombre}" de tu base de datos?`)) { delete baseAlimentos[key]; document.getElementById('nuevo-nombre').value = ''; guardarEnNube(); }
+    }
+
+    function agregarFilaCombo() {
+        const container = document.getElementById('combo-ingredientes');
+        const div = document.createElement('div'); div.className = 'combo-row';
+        const select = document.createElement('select'); select.style.flex = '2'; select.style.margin = '0'; select.className = 'combo-select';
+        select.innerHTML = '<option value="">-- Ingrediente --</option>';
+        Object.keys(baseAlimentos).sort((a,b) => baseAlimentos[a].nombre.localeCompare(baseAlimentos[b].nombre)).forEach(key => { select.innerHTML += `<option value="${key}">${baseAlimentos[key].nombre}</option>`; });
+        const input = document.createElement('input'); input.type = 'number'; input.className = 'combo-gramos'; input.placeholder = 'Gramos'; input.style.flex = '1'; input.style.margin = '0';
+        const btn = document.createElement('button'); btn.innerHTML = '❌'; btn.style.cssText = 'margin:0; padding:10px; flex:0.3; border:none; background:none; color:var(--danger);';
+        btn.onclick = () => div.remove();
+        div.appendChild(select); div.appendChild(input); div.appendChild(btn); container.appendChild(div);
+    }
+
+    function guardarCombo() {
+        const nombre = document.getElementById('combo-nombre').value.trim();
+        if (!nombre) return alert("Ponle un nombre a tu receta.");
+        let totalProt = 0, totalCarb = 0, totalGras = 0, validos = 0, listaIngredientes = []; 
+        document.querySelectorAll('.combo-row').forEach(fila => {
+            const key = fila.querySelector('.combo-select').value; const gramos = parseFloat(fila.querySelector('.combo-gramos').value);
+            if (key && gramos > 0) {
+                const info = baseAlimentos[key];
+                totalProt += (info.prot / 100) * gramos; totalCarb += (info.carb / 100) * gramos; totalGras += (info.gras / 100) * gramos;
+                listaIngredientes.push({ nombre: info.nombre, gramos: gramos }); validos++;
+            }
+        });
+        if (validos === 0) return alert("Agrega algún ingrediente.");
+        const keyCombo = nombre.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_receta';
+        baseAlimentos[keyCombo] = { nombre: nombre + " (1 porción = 100%)", prot: totalProt, carb: totalCarb, gras: totalGras, ingredientes: listaIngredientes };
+        document.getElementById('combo-nombre').value = ''; document.getElementById('combo-ingredientes').innerHTML = '';
+        guardarEnNube(); alert(`¡Receta creada!`);
+    }
+
+    function mostrarDetalleReceta() {
+        const key = document.getElementById('select-recetario').value; const div = document.getElementById('detalle-receta');
+        if (!key) { div.style.display = 'none'; return; }
+        const r = baseAlimentos[key];
+        let html = `<h4 style="margin:0 0 5px 0;color:var(--primary);">${r.nombre.replace(" (1 porción = 100%)", "")}</h4><span style="font-size:0.85em;color:var(--text-muted);">Prot: ${r.prot.toFixed(1)}g | Carb: ${r.carb.toFixed(1)}g | Gras: ${r.gras.toFixed(1)}g</span><ul style="margin-top:5px;margin-bottom:0;padding-left:20px;font-size:0.9em;">`;
+        r.ingredientes.forEach(ing => { html += `<li><strong>${ing.gramos}g</strong> de ${ing.nombre}</li>`; });
+        div.innerHTML = html + `</ul>`; div.style.display = 'block';
+    }
+
+    function eliminarReceta() {
+        const key = document.getElementById('select-recetario').value;
+        if(!key) return alert("Selecciona una receta arriba.");
+        if(confirm(`¿Eliminar receta?`)) { delete baseAlimentos[key]; document.getElementById('detalle-receta').style.display = 'none'; guardarEnNube(); }
+    }
+</script>
+</body>
+</html>
